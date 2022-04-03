@@ -17,5 +17,6 @@ using Kaspawalletd;
 //    Console.WriteLine(messageStream.ResponseStream.Current);
 //}
 
-var examples = new RPCExamples();
+var examples = new RpcExamples();
 await examples.NewAddressExample();
+await examples.GetBalanceExample();

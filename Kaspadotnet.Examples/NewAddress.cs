@@ -3,7 +3,7 @@ using Kaspawalletd;
 
 namespace Kaspadotnet.Examples;
 
-public partial class RPCExamples
+public partial class RpcExamples
 {
     public async Task NewAddressExample()
     {
