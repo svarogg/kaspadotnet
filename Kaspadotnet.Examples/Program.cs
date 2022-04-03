@@ -7,16 +7,7 @@ using Kaspadotnet.Examples;
 using Protowire;
 using Kaspawalletd;
 
-//async Task kaspadExample()
-//{
-//    using var messageStream = kaspadClient.MessageStream();
-//    var request = new GetBlockDagInfoRequestMessage();
-//    var message = new KaspadMessage {GetBlockDagInfoRequest = request};
-//    await messageStream.RequestStream.WriteAsync(message);
-//    await messageStream.ResponseStream.MoveNext();
-//    Console.WriteLine(messageStream.ResponseStream.Current);
-//}
-
 var examples = new RpcExamples();
 await examples.NewAddressExample();
 await examples.GetBalanceExample();
+await examples.GetUTXOsByAddressExample();

@@ -10,7 +10,7 @@ public class KaspadClient : RPC.RPCClient, IDisposable
     
     private GrpcChannel channel;
     
-    public KaspadClient(string url = "http://localhost:16610")  
+    public KaspadClient(string url = "http://localhost:16110")  
     {
         channel = GrpcChannel.ForAddress(url);
         Client = new RPC.RPCClient(channel);
