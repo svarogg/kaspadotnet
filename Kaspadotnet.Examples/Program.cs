@@ -11,3 +11,5 @@ var examples = new RpcExamples();
 await examples.NewAddressExample();
 await examples.GetBalanceExample();
 await examples.GetUTXOsByAddressExample();
+await examples.CreateUnsignedTransactionExample();
+await examples.BroadcastTransaction();
