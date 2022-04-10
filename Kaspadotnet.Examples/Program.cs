@@ -7,9 +7,15 @@ using Kaspadotnet.Examples;
 using Protowire;
 using Kaspawalletd;
 
+Console.WriteLine("Please enter password");
+var password = Console.ReadLine();
+
+
 var examples = new RpcExamples();
 await examples.NewAddressExample();
 await examples.GetBalanceExample();
 await examples.GetUTXOsByAddressExample();
-await examples.CreateUnsignedTransactionExample();
-await examples.BroadcastTransaction();
+if (password != null)
+{
+    await examples.SendTransaction(password);
+}

@@ -24,7 +24,6 @@ public class KaspadClient : RPC.RPCClient, IDisposable
 
 public static class Clients
 {
-
     static kaspawalletd.kaspawalletdClient KaspawalletdClient(string url = "http://localhost:8082")
     {
         using var kaspawalletChannel = GrpcChannel.ForAddress(url);
