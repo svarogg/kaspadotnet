@@ -7,11 +7,11 @@ using Kaspadotnet.Examples;
 using Protowire;
 using Kaspawalletd;
 
+var examples = new RpcExamples();
+
 Console.WriteLine("Please enter password");
 var password = Console.ReadLine();
 
-
-var examples = new RpcExamples();
 await examples.NewAddressExample();
 await examples.GetBalanceExample();
 await examples.GetUTXOsByAddressExample();
@@ -19,3 +19,6 @@ if (password != null)
 {
     await examples.SendTransaction(password);
 }
+
+// Commented out, because SubscribeToUTXOUpdatesExample blocks.
+// await examples.SubscribeToUTXOUpdatesExample();
