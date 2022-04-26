@@ -20,5 +20,6 @@ if (password != null)
     await examples.SendTransaction(password);
 }
 
-// Commented out, because SubscribeToUTXOUpdatesExample blocks.
+// Commented out, because the following methods block.
 // await examples.SubscribeToUTXOUpdatesExample();
+// await examples.FollowTransactionsExample();

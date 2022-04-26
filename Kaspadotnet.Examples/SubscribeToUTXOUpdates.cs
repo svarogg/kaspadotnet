@@ -34,6 +34,7 @@ public partial class RpcExamples
         if (response.NotifyUtxosChangedResponse.Error != null)
         {
             Console.WriteLine($"Error when subscribing to notifications: {response.NotifyUtxosChangedResponse.Error}");
+            return;
         }
 
         Console.WriteLine("Subsribed to notifications, awaiting messages...");
