@@ -11,10 +11,13 @@ public partial class RpcExamples
     {
         internal RpcTransaction transaction;
         internal string? acceptingBlockHash;
+        internal ulong confirmations;  
 
         public TransactionWithData(RpcTransaction transaction)
         {
             this.transaction = transaction;
+            confirmations = 0;
+            acceptingBlockHash = null;
         }
     }
 
@@ -22,12 +25,15 @@ public partial class RpcExamples
     {
         internal readonly Dictionary<string, TransactionWithData> TransactionsById;
         internal readonly Dictionary<string, List<TransactionWithData>> TransactionsByAcceptingBlockHash;
+        internal readonly Dictionary<string, RpcBlock> Blocks;
 
         public FollowTransactionsState()
         {
             TransactionsById = new Dictionary<string, TransactionWithData>();
             TransactionsByAcceptingBlockHash = new Dictionary<string, List<TransactionWithData>>();
+            Blocks = new Dictionary<string, RpcBlock>();
         }
+
     }
 
     public async Task FollowTransactionsExample()
@@ -68,6 +74,8 @@ public partial class RpcExamples
     private void handleBlockAddedNotification(BlockAddedNotificationMessage blockAddedNotification,
         FollowTransactionsState state)
     {
+        state.Blocks[blockAddedNotification.Block.VerboseData.Hash] = blockAddedNotification.Block;
+        
         foreach (var transaction in blockAddedNotification.Block.Transactions)
         {
             // At this stage you might want to filter out transactions that are not relevant to you
@@ -78,7 +86,69 @@ public partial class RpcExamples
     }
 
     private void handleVirtualSelectedParentChainChangedNotification(
-        VirtualSelectedParentChainChangedNotificationMessage virtualSelectedParentChainChangedNotification, 
+        VirtualSelectedParentChainChangedNotificationMessage virtualSelectedParentChainChangedNotification,
+        FollowTransactionsState state)
+    {
+        UnacceptRemovedBlocks(virtualSelectedParentChainChangedNotification, state);
+
+        AcceptTransactions(virtualSelectedParentChainChangedNotification, state);
+
+        UpdateConfirmations(virtualSelectedParentChainChangedNotification, state);
+    }
+
+    private void UpdateConfirmations(
+        VirtualSelectedParentChainChangedNotificationMessage virtualSelectedParentChainChangedNotificationMessage,
+        FollowTransactionsState state)
+    {
+        // It might make sense to not update confirmations every block, as this happens a lot, and the operation
+        // might be heavy if there are a lot of transactions waiting for confirmation. 
+        // In such a case, it might make sense to set a timer to update confirmations once every N minutes, and use  
+        // the `GetVirtualSelectedParentBlueScore` command to get virtualSelectedParentBlueScore.  
+        var virtualSelectedParentHash = virtualSelectedParentChainChangedNotificationMessage.AddedChainBlockHashes.Last();
+        var virtualSelectedParent = state.Blocks[virtualSelectedParentHash];
+        var virtualSelectedParentBlueScore = virtualSelectedParent.VerboseData.BlueScore;
+
+        foreach (var acceptingBlockPair in state.TransactionsByAcceptingBlockHash)
+        {
+            var acceptingBlockHash = acceptingBlockPair.Key;
+            var transactions = acceptingBlockPair.Value;
+            var acceptingBlock = state.Blocks[acceptingBlockHash];
+            var confirmations = virtualSelectedParentBlueScore - acceptingBlock.VerboseData.BlueScore + 1;
+
+            foreach (var transaction in transactions)
+            {
+                transaction.confirmations = confirmations;
+            }
+        }
+    }
+
+    private static void AcceptTransactions(
+        VirtualSelectedParentChainChangedNotificationMessage virtualSelectedParentChainChangedNotification,
+        FollowTransactionsState state)
+    {
+        var acceptedTransactionIds = virtualSelectedParentChainChangedNotification.AcceptedTransactionIds;
+        foreach (var acceptedTransactionIdsWithBlock in acceptedTransactionIds)
+        {
+            var acceptingBlockHash = acceptedTransactionIdsWithBlock.AcceptingBlockHash;
+            state.TransactionsByAcceptingBlockHash[acceptingBlockHash] = new List<TransactionWithData>();
+            foreach (var acceptedTransactionId in acceptedTransactionIdsWithBlock.AcceptedTransactionIds_)
+            {
+                if (!state.TransactionsById.ContainsKey(acceptedTransactionId))
+                {
+                    // This might happen if transactions were filtered-out, or if transaction was included in a block
+                    // deeper than where we started processing
+                    continue;
+                }
+
+                var transaction = state.TransactionsById[acceptedTransactionId];
+                transaction.acceptingBlockHash = acceptingBlockHash;
+                state.TransactionsByAcceptingBlockHash[acceptingBlockHash].Add(transaction);
+            }
+        }
+    }
+
+    private static void UnacceptRemovedBlocks(
+        VirtualSelectedParentChainChangedNotificationMessage virtualSelectedParentChainChangedNotification,
         FollowTransactionsState state)
     {
         var removedChainBlockHashes = virtualSelectedParentChainChangedNotification.RemovedChainBlockHashes;
@@ -93,26 +163,8 @@ public partial class RpcExamples
             {
                 transaction.acceptingBlockHash = null;
             }
-            state.TransactionsByAcceptingBlockHash.Remove(removedChainBlockHash);
-        }
 
-        var acceptedTransactionIds = virtualSelectedParentChainChangedNotification.AcceptedTransactionIds;
-        foreach (var acceptedTransactionIdsWithBlock in acceptedTransactionIds)
-        {
-            var acceptingBlockHash = acceptedTransactionIdsWithBlock.AcceptingBlockHash;
-            state.TransactionsByAcceptingBlockHash[acceptingBlockHash] = new List<TransactionWithData>();
-            foreach (var acceptedTransactionId in acceptedTransactionIdsWithBlock.AcceptedTransactionIds_)
-            {
-                if (!state.TransactionsById.ContainsKey(acceptedTransactionId)) 
-                { 
-                    // This might happen if transactions were filtered-out, or if transaction was included in a block
-                    // deeper than where we started processing
-                    continue;
-                } 
-                var transaction = state.TransactionsById[acceptedTransactionId];
-                transaction.acceptingBlockHash = acceptingBlockHash;
-                state.TransactionsByAcceptingBlockHash[acceptingBlockHash].Add(transaction);
-            }
+            state.TransactionsByAcceptingBlockHash.Remove(removedChainBlockHash);
         }
     }
 
