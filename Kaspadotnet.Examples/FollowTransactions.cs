@@ -60,6 +60,7 @@ public partial class RpcExamples
                     break;
 
                 case KaspadMessage.PayloadOneofCase.VirtualSelectedParentChainChangedNotification:
+                    await FetchMissingBlocks(message.VirtualSelectedParentChainChangedNotification, state, messageStream);
                     handleVirtualSelectedParentChainChangedNotification(
                         message.VirtualSelectedParentChainChangedNotification, state);
                     break;
@@ -69,6 +70,60 @@ public partial class RpcExamples
             }
             Console.WriteLine($"State after message:\n Transactions: {JsonSerializer.Serialize(state.TransactionsById)}");
         }
+    }
+
+    private async Task FetchMissingBlocks(
+        VirtualSelectedParentChainChangedNotificationMessage virtualSelectedParentChainChangedNotification,
+        FollowTransactionsState state, AsyncDuplexStreamingCall<KaspadMessage, KaspadMessage> messageStream)
+    {
+        var acceptedTransactionIds = virtualSelectedParentChainChangedNotification.AcceptedTransactionIds;
+        foreach (var acceptedTransactionIdsWithBlock in acceptedTransactionIds)
+        {
+            var acceptingBlockHash = acceptedTransactionIdsWithBlock.AcceptingBlockHash;
+            if (!state.Blocks.ContainsKey(acceptingBlockHash))
+            {
+                // If the accepting block is missing, fetch it
+                var block = await FetchMissingBlock(state, messageStream, acceptingBlockHash);
+
+                // Accepted txs always come from blocks in the mergeset of the accepting block, where the mergeset is the set of blocks which are in the
+                // past of this chain block but not in the past of the previous chain block. 
+                // Thus, in order to make sure we have the data for all accepted txs, we make sure all merged blocks are fetched as well 
+                foreach (var mergedBlock in
+                    block.VerboseData.MergeSetBluesHashes.Concat(block.VerboseData.MergeSetRedsHashes)) {
+                    if (!state.Blocks.ContainsKey(mergedBlock))
+                    {
+                        await FetchMissingBlock(state, messageStream, mergedBlock);
+                    }
+                }
+            }
+        }
+    }
+
+    private async Task<RpcBlock> FetchMissingBlock(FollowTransactionsState state, AsyncDuplexStreamingCall<KaspadMessage, KaspadMessage> messageStream, string missingBlockHash)
+    {
+        var getBlockRequest = new KaspadMessage
+        {
+            GetBlockRequest = new GetBlockRequestMessage
+            {
+                Hash = missingBlockHash,
+                IncludeTransactions = true
+            }
+        };
+
+        await messageStream.RequestStream.WriteAsync(getBlockRequest);
+        await messageStream.ResponseStream.MoveNext();
+        var response = messageStream.ResponseStream.Current;
+        state.Blocks[response.GetBlockResponse.Block.VerboseData.Hash] = response.GetBlockResponse.Block;
+
+        foreach (var transaction in response.GetBlockResponse.Block.Transactions)
+        {
+            // At this stage you might want to filter out transactions that are not relevant to you
+
+            var transactionId = transaction.VerboseData.TransactionId;
+            state.TransactionsById[transactionId] = new TransactionWithData(transaction);
+        }
+
+        return response.GetBlockResponse.Block;
     }
 
     private void handleBlockAddedNotification(BlockAddedNotificationMessage blockAddedNotification,
